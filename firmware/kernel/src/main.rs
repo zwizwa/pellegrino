@@ -30,33 +30,37 @@ const SINE_TABLE: [i16; 256] = [
 
 #[rtic::app(device = nrf52840_hal::pac, dispatchers = [SWI0_EGU0])]
 mod app {
+    use super::{letsago, DEFAULT_IMAGE};
     use core::sync::atomic::Ordering;
     use cortex_m::singleton;
     use defmt::unwrap;
+    use groundhog::RollingTimer;
     use groundhog_nrf52::GlobalRollingTimer;
-    use nrf52840_hal::{
-        clocks::{ExternalOscillator, Internal, LfOscStopped},
-        pac::{TIMER0, GPIOTE},
-        usbd::{UsbPeripheral, Usbd},
-        Clocks, gpio::Level,
-        prelude::Ppi,
-        ppi::ConfigurablePpi,
-    };
     use kernel::{
         alloc::HEAP,
-        monotonic::MonoTimer,
-        drivers::{usb_serial::{UsbUartParts, setup_usb_uart, UsbUartIsr, enable_usb_interrupts}, nrf52_pin::MPin},
-        syscall::{syscall_clear, try_recv_syscall},
+        drivers::{
+            nrf52_pin::MPin,
+            usb_serial::{enable_usb_interrupts, setup_usb_uart, UsbUartIsr, UsbUartParts},
+        },
         loader::validate_header,
+        monotonic::MonoTimer,
+        syscall::{syscall_clear, try_recv_syscall},
         traits::{BlockStorage, GpioPin},
+    };
+    use nrf52840_hal::{
+        clocks::{ExternalOscillator, Internal, LfOscStopped},
+        gpio::Level,
+        pac::{GPIOTE, TIMER0},
+        ppi::ConfigurablePpi,
+        prelude::Ppi,
+        usbd::{UsbPeripheral, Usbd},
+        Clocks,
     };
     use usb_device::{
         class_prelude::UsbBusAllocator,
         device::{UsbDeviceBuilder, UsbVidPid},
     };
     use usbd_serial::{SerialPort, USB_CLASS_CDC};
-    use groundhog::RollingTimer;
-    use super::{DEFAULT_IMAGE, letsago};
 
     #[monotonic(binds = TIMER0, default = true)]
     type Monotonic = MonoTimer<TIMER0>;
@@ -108,7 +112,8 @@ mod app {
 
         let (usb_dev, usb_serial) = {
             let usb_bus = Usbd::new(UsbPeripheral::new(device.USBD, clocks));
-            let usb_bus = defmt::unwrap!(singleton!(:UsbBusAllocator<Usbd<UsbPeripheral>> = usb_bus));
+            let usb_bus =
+                defmt::unwrap!(singleton!(:UsbBusAllocator<Usbd<UsbPeripheral>> = usb_bus));
 
             let usb_serial = SerialPort::new(usb_bus);
             let usb_dev = UsbDeviceBuilder::new(usb_bus, UsbVidPid(0x16c0, 0x27dd))
@@ -123,7 +128,6 @@ mod app {
 
             (usb_dev, usb_serial)
         };
-
 
         let UsbUartParts { isr, sys } = defmt::unwrap!(setup_usb_uart(usb_dev, usb_serial));
 
@@ -157,7 +161,8 @@ mod app {
         let mut hg = defmt::unwrap!(HEAP.try_lock());
 
         let to_uart: &'static mut dyn kernel::traits::Serial = defmt::unwrap!(hg.leak_send(sys));
-        let to_block: &'static mut dyn kernel::traits::BlockStorage = defmt::unwrap!(hg.leak_send(block));
+        let to_block: &'static mut dyn kernel::traits::BlockStorage =
+            defmt::unwrap!(hg.leak_send(block));
 
         //
         // Map GPIO pins
@@ -188,31 +193,25 @@ mod app {
         let scl = defmt::unwrap!(hg.leak_send(MPin::new(pins.scl.degrade())));
         let sda = defmt::unwrap!(hg.leak_send(MPin::new(pins.sda.degrade())));
 
-        let array_gpios: [&'static mut dyn GpioPin; 5] = [
-            led1,
-            led2,
-            d05,
-            scl,
-            sda,
-        ];
+        let array_gpios: [&'static mut dyn GpioPin; 5] = [led1, led2, d05, scl, sda];
         let leak_gpios = defmt::unwrap!(hg.leak_send(array_gpios));
 
         // Chip Selects
-        let d09 = defmt::unwrap!(hg.leak_send(pins.d09.degrade().into_push_pull_output(Level::High)));
-        let d10 = defmt::unwrap!(hg.leak_send(pins.d10.degrade().into_push_pull_output(Level::High)));
-        let d11 = defmt::unwrap!(hg.leak_send(pins.d11.degrade().into_push_pull_output(Level::High)));
-        let d12 = defmt::unwrap!(hg.leak_send(pins.d12.degrade().into_push_pull_output(Level::High)));
-        let d13 = defmt::unwrap!(hg.leak_send(pins.d13.degrade().into_push_pull_output(Level::High)));
-        let d06 = defmt::unwrap!(hg.leak_send(pins.d06.degrade().into_push_pull_output(Level::High)));
-
+        let d09 =
+            defmt::unwrap!(hg.leak_send(pins.d09.degrade().into_push_pull_output(Level::High)));
+        let d10 =
+            defmt::unwrap!(hg.leak_send(pins.d10.degrade().into_push_pull_output(Level::High)));
+        let d11 =
+            defmt::unwrap!(hg.leak_send(pins.d11.degrade().into_push_pull_output(Level::High)));
+        let d12 =
+            defmt::unwrap!(hg.leak_send(pins.d12.degrade().into_push_pull_output(Level::High)));
+        let d13 =
+            defmt::unwrap!(hg.leak_send(pins.d13.degrade().into_push_pull_output(Level::High)));
+        let d06 =
+            defmt::unwrap!(hg.leak_send(pins.d06.degrade().into_push_pull_output(Level::High)));
 
         let csn_pins: [&'static mut dyn kernel::traits::OutputPin; 6] = [
-            d09,
-            d10,
-            d11,
-            d12,
-            d13,
-            d06, // TODO: Oops
+            d09, d10, d11, d12, d13, d06, // TODO: Oops
         ];
         let leak_csns = defmt::unwrap!(hg.leak_send(csn_pins));
 
@@ -239,9 +238,7 @@ mod app {
         };
 
         (
-            Shared {
-                spi,
-            },
+            Shared { spi },
             Local {
                 usb_isr: isr,
                 machine,
@@ -267,9 +264,7 @@ mod app {
     #[task(binds = SPIM3, shared = [spi], priority = 2)]
     fn spim3(mut cx: spim3::Context) {
         // TODO: NOT this
-        let gpiote = unsafe {
-            &*GPIOTE::ptr()
-        };
+        let gpiote = unsafe { &*GPIOTE::ptr() };
 
         // Clear channel 0 events (which probably stopped our SPI device)
         gpiote.events_in[0].write(|w| w);
@@ -305,7 +300,7 @@ mod app {
         let start = timer.get_ticks();
 
         // Wait, to allow RTT to attach
-        while timer.millis_since(start) < 1000 { }
+        while timer.millis_since(start) < 1000 {}
 
         const CSN_XCS: u8 = 2;
         const CSN_XDCS: u8 = 5;
@@ -328,7 +323,7 @@ mod app {
         loop {
             match dreq.read_pin() {
                 Ok(true) => break,
-                Ok(false) => {},
+                Ok(false) => {}
                 Err(()) => panic!(),
             }
         }
@@ -338,20 +333,21 @@ mod app {
         buf_out.copy_from_slice(&[
             0x02, // Write
             0x00, // MODE
-            0x48,
-            0x04,
+            0x48, 0x04,
         ]);
-        cx.shared.spi.lock(|spi| spi.send(CSN_XCS, 1_000, buf_out).map_err(drop).unwrap());
+        cx.shared
+            .spi
+            .lock(|spi| spi.send(CSN_XCS, 1_000, buf_out).map_err(drop).unwrap());
 
         // Wait "a couple hundred cycles", I dunno, 5ms?
         let delay = timer.get_ticks();
-        while timer.millis_since(delay) < 5 { }
+        while timer.millis_since(delay) < 5 {}
 
         // Wait for DREQ to go high
         loop {
             match dreq.read_pin() {
                 Ok(true) => break,
-                Ok(false) => {},
+                Ok(false) => {}
                 Err(()) => panic!(),
             }
         }
@@ -366,20 +362,20 @@ mod app {
         buf_out.copy_from_slice(&[
             0x02, // Write
             0x03, // CLOCKF
-            0x98,
-            0x00,
+            0x98, 0x00,
         ]);
-        cx.shared.spi.lock(|spi| spi.send(CSN_XCS, 1_000, buf_out).map_err(drop).unwrap());
+        cx.shared
+            .spi
+            .lock(|spi| spi.send(CSN_XCS, 1_000, buf_out).map_err(drop).unwrap());
 
         // Wait "a couple hundred cycles", I dunno, 5ms?
         let delay = timer.get_ticks();
-        while timer.millis_since(delay) < 5 { }
+        while timer.millis_since(delay) < 5 {}
 
         // One bit every 4 CLKI pulses.
         // Since we've increased the clock rate to
         // 3.5xXTALI (~43MHz), that gives us a max SPI
         // clock rate of ~10.75MHz. Use 8MHz.
-
 
         // Before decoding, set
         // * SCI_MODE
@@ -393,14 +389,15 @@ mod app {
         buf_out.copy_from_slice(&[
             0x02, // Write
             0x0B, // VOLUME
-            0x24,
-            0x24,
+            0x24, 0x24,
         ]);
-        cx.shared.spi.lock(|spi| spi.send(CSN_XCS, 1_000, buf_out).map_err(drop).unwrap());
+        cx.shared
+            .spi
+            .lock(|spi| spi.send(CSN_XCS, 1_000, buf_out).map_err(drop).unwrap());
 
         // Wait "a couple hundred cycles", I dunno, 5ms?
         let delay = timer.get_ticks();
-        while timer.millis_since(delay) < 5 { }
+        while timer.millis_since(delay) < 5 {}
         let mut idata = [0i16; 200];
 
         defmt::println!("Generating data...");
@@ -450,29 +447,31 @@ mod app {
 
         let mut header = HEAP.try_lock().unwrap().alloc_box_array(0u8, 44).unwrap();
         header.copy_from_slice(&[
-            0x52, 0x49, 0x46, 0x46, 0xff, 0xff, 0xff, 0xff, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6d, 0x74, 0x20,
-            0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x44, 0xac, 0x00, 0x00, 0x10, 0xb1, 0x02, 0x00,
-            0x04, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61, 0xff, 0xff, 0xff, 0xff,
+            0x52, 0x49, 0x46, 0x46, 0xff, 0xff, 0xff, 0xff, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6d,
+            0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x44, 0xac, 0x00, 0x00,
+            0x10, 0xb1, 0x02, 0x00, 0x04, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74, 0x61, 0xff, 0xff,
+            0xff, 0xff,
         ]);
-        cx.shared.spi.lock(|spi| spi.send(CSN_XDCS, 8_000, header).map_err(drop).unwrap());
+        cx.shared
+            .spi
+            .lock(|spi| spi.send(CSN_XDCS, 8_000, header).map_err(drop).unwrap());
 
         cx.local.ppi0.enable();
         let mut forever = idata.iter().cycle();
         let mut already_calcd = None;
         let mut iters = 0;
         while iters < 1000 {
-
             let small_buf = match already_calcd.take() {
                 Some(sb) => sb,
                 None => {
-                    let mut small_buf = HEAP.try_lock().unwrap().alloc_box_array(0u8, 2048).unwrap();
+                    let mut small_buf =
+                        HEAP.try_lock().unwrap().alloc_box_array(0u8, 2048).unwrap();
                     small_buf.chunks_exact_mut(2).for_each(|ch| {
                         ch.copy_from_slice(&forever.next().unwrap().to_le_bytes());
                     });
                     small_buf
                 }
             };
-
 
             // Wait for DREQ to go high
             loop {
@@ -488,23 +487,23 @@ mod app {
                     Ok(()) => {
                         iters += 1;
                         None
-                    },
+                    }
                     Err(e) => {
                         spi.start_send();
                         Some(e)
-                    },
+                    }
                 };
             });
 
             let start = timer.get_ticks();
-            while timer.millis_since(start) <= 1 { }
+            while timer.millis_since(start) <= 1 {}
 
             // cx.shared.spi.lock(|spi| {
             //     spi.start_send();
             // });
         }
         let start = timer.get_ticks();
-        while timer.millis_since(start) <= 1000 { }
+        while timer.millis_since(start) <= 1000 {}
         kernel::exit();
     }
 }
@@ -539,7 +538,6 @@ unsafe fn letsago(sp: u32, entry: u32) -> ! {
         in(reg) entry,
         options(noreturn, nomem, nostack),
     );
-
 }
 
 fn armsin(v: f32) -> f32 {
