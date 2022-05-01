@@ -173,12 +173,12 @@ mod app {
         let led2 = defmt::unwrap!(hg.leak_send(MPin::new(pins.led2.degrade())));
 
         // IRQ/AUX pins
-        let d05_pre = pins.d05.degrade().into_floating_input();
+        let d_dreq_pre = pins.d05.degrade().into_floating_input();
 
         // Enable hi-to-low interrupts
         let gpiote = nrf52840_hal::gpiote::Gpiote::new(device.GPIOTE);
         let ch0 = gpiote.channel0();
-        let ch_ev = ch0.input_pin(&d05_pre);
+        let ch_ev = ch0.input_pin(&d_dreq_pre);
         ch_ev.hi_to_lo();
 
         let ppi = nrf52840_hal::ppi::Parts::new(device.PPI);
@@ -188,12 +188,12 @@ mod app {
         ppi0.set_task_endpoint(&device.SPIM3.tasks_stop);
         ppi0.disable();
 
-        let d05 = defmt::unwrap!(hg.leak_send(MPin::new_input_floating(d05_pre)));
+        let d_dreq = defmt::unwrap!(hg.leak_send(MPin::new_input_floating(d_dreq_pre)));
         // let d06 = defmt::unwrap!(hg.leak_send(MPin::new(pins.d06.degrade())));
         let scl = defmt::unwrap!(hg.leak_send(MPin::new(pins.scl.degrade())));
         let sda = defmt::unwrap!(hg.leak_send(MPin::new(pins.sda.degrade())));
 
-        let array_gpios: [&'static mut dyn GpioPin; 5] = [led1, led2, d05, scl, sda];
+        let array_gpios: [&'static mut dyn GpioPin; 5] = [led1, led2, d_dreq, scl, sda];
         let leak_gpios = defmt::unwrap!(hg.leak_send(array_gpios));
 
         // Chip Selects
@@ -201,17 +201,17 @@ mod app {
             defmt::unwrap!(hg.leak_send(pins.d09.degrade().into_push_pull_output(Level::High)));
         let d10 =
             defmt::unwrap!(hg.leak_send(pins.d10.degrade().into_push_pull_output(Level::High)));
-        let d11 =
+        let d_xcs =
             defmt::unwrap!(hg.leak_send(pins.d11.degrade().into_push_pull_output(Level::High)));
         let d12 =
             defmt::unwrap!(hg.leak_send(pins.d12.degrade().into_push_pull_output(Level::High)));
         let d13 =
             defmt::unwrap!(hg.leak_send(pins.d13.degrade().into_push_pull_output(Level::High)));
-        let d06 =
+        let d_xdcs =
             defmt::unwrap!(hg.leak_send(pins.d06.degrade().into_push_pull_output(Level::High)));
 
         let csn_pins: [&'static mut dyn kernel::traits::OutputPin; 6] = [
-            d09, d10, d11, d12, d13, d06, // TODO: Oops
+            d09, d10, d_xcs, d12, d13, d_xdcs, // TODO: Oops
         ];
         let leak_csns = defmt::unwrap!(hg.leak_send(csn_pins));
 
