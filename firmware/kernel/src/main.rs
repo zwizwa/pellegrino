@@ -3,7 +3,7 @@
 
 static DEFAULT_IMAGE: &[u8] = include_bytes!("../appbins/blinker.bin");
 
-use cmsis_dsp_sys as _;
+// use cmsis_dsp_sys as _;
 
 const SINE_TABLE: [i16; 256] = [
     0, 804, 1608, 2410, 3212, 4011, 4808, 5602, 6393, 7179, 7962, 8739, 9512, 10278, 11039, 11793,
