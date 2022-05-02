@@ -172,13 +172,13 @@ mod app {
         //
 
         // DREQ
-        let d05 = pins.d05.degrade().into_floating_input();
-        let d11 = pins.d11.degrade().into_push_pull_output(Level::High);
+        let d09 = pins.d09.degrade().into_floating_input();
         let d06 = pins.d06.degrade().into_push_pull_output(Level::High);
+        let d10 = pins.d10.degrade().into_push_pull_output(Level::High);
 
-        let command_pin = d11;
-        let data_pin = d06;
-        let dreq = d05;
+        let command_pin = d06;
+        let data_pin = d10;
+        let dreq = d09;
 
         let gpiote = nrf52840_hal::gpiote::Gpiote::new(device.GPIOTE);
         let ppi = nrf52840_hal::ppi::Parts::new(device.PPI);
